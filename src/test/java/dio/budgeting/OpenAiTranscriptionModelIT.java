@@ -6,11 +6,13 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.ai.openai.OpenAiAudioTranscriptionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Import(TestcontainersConfiguration.class)
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 public class OpenAiTranscriptionModelIT {
     @Autowired
@@ -28,7 +30,7 @@ public class OpenAiTranscriptionModelIT {
     public void should_containExpectedKeywords_when_audioFilesAreProcessed(String fileName, String expectedKeyword) {
         var recording = new ClassPathResource("audio/" + fileName);
 
-        var response = openAiTranscriptionModel.call(recording);
+        var response = openAiTranscriptionModel.transcribe(recording);
 
         assertThat(response).contains(expectedKeyword);
         System.out.println(response);
