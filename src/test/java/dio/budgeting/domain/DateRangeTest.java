@@ -39,6 +39,18 @@ class DateRangeTest {
     }
 
     @Test
+    void should_fillMissingDates_when_resolvingRange() {
+        var today = LocalDate.of(2026, 10, 25);
+
+        assertThat(DateRange.resolve(null, null, today))
+                .isEqualTo(new DateRange(LocalDate.of(2026, 10, 1), today));
+        assertThat(DateRange.resolve(null, LocalDate.of(2026, 9, 15), today))
+                .isEqualTo(new DateRange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 15)));
+        assertThat(DateRange.resolve(LocalDate.of(2026, 10, 20), null, today))
+                .isEqualTo(new DateRange(LocalDate.of(2026, 10, 20), today));
+    }
+
+    @Test
     void should_startAtFirstDayOfMonth_when_usingMonthUntil() {
         var range = DateRange.monthUntil(LocalDate.of(2026, 10, 25));
 

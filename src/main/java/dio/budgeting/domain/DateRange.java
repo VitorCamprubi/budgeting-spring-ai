@@ -22,6 +22,15 @@ public record DateRange(LocalDate from, LocalDate to) {
         return new DateRange(date.withDayOfMonth(1), date);
     }
 
+    /**
+     * Completa as datas que não foram informadas: o fim vira "hoje" e o início vira o primeiro dia do mês do fim.
+     */
+    public static DateRange resolve(LocalDate from, LocalDate to, LocalDate today) {
+        var end = to != null ? to : today;
+        var start = from != null ? from : end.withDayOfMonth(1);
+        return new DateRange(start, end);
+    }
+
     public boolean contains(LocalDate date) {
         return !date.isBefore(from) && !date.isAfter(to);
     }

@@ -1,6 +1,7 @@
 package dio.budgeting.infrastructure.persistence.repository;
 
 import dio.budgeting.domain.Category;
+import dio.budgeting.domain.DateRange;
 import dio.budgeting.domain.Transaction;
 import dio.budgeting.domain.TransactionRepository;
 import dio.budgeting.infrastructure.persistence.entity.TransactionEntity;
@@ -24,8 +25,22 @@ public class JpaTransactionRepository implements TransactionRepository {
 
     @Override
     public List<Transaction> findAllByCategory(Category category) {
-        return transactionEntityRepository.findAllByCategory(category)
-                .stream()
+        return toDomain(transactionEntityRepository.findAllByCategory(category));
+    }
+
+    @Override
+    public List<Transaction> findAllByDateRange(DateRange range) {
+        return toDomain(transactionEntityRepository.findAllByDateBetweenOrderByDateAsc(range.from(), range.to()));
+    }
+
+    @Override
+    public List<Transaction> findAllByCategoryAndDateRange(Category category, DateRange range) {
+        return toDomain(transactionEntityRepository.findAllByCategoryAndDateBetweenOrderByDateAsc(
+                category, range.from(), range.to()));
+    }
+
+    private static List<Transaction> toDomain(List<TransactionEntity> entities) {
+        return entities.stream()
                 .map(TransactionEntity::toDomain)
                 .toList();
     }
