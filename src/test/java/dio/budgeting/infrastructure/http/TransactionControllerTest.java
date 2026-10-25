@@ -13,6 +13,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -26,6 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(TransactionController.class)
 class TransactionControllerTest {
+    private static final LocalDate DATE = LocalDate.of(2026, 10, 25);
+
     @Autowired
     MockMvc mockMvc;
 
@@ -38,7 +41,7 @@ class TransactionControllerTest {
     @Test
     void should_return201_when_transactionIsValid() throws Exception {
         when(persistTransactionUseCase.execute(any())).thenReturn(
-                new TransactionOutput("b7c1", "Compra no mercado", "GROCERIES", new BigDecimal("80.00")));
+                new TransactionOutput("b7c1", "Compra no mercado", "GROCERIES", new BigDecimal("80.00"), DATE));
 
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -47,7 +50,8 @@ class TransactionControllerTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("b7c1"))
-                .andExpect(jsonPath("$.amount").value(80.0));
+                .andExpect(jsonPath("$.amount").value(80.0))
+                .andExpect(jsonPath("$.date").value("2026-10-25"));
     }
 
     @Test
@@ -62,6 +66,19 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.errors.description").value("A descrição é obrigatória"))
                 .andExpect(jsonPath("$.errors.category").value("A categoria é obrigatória"))
                 .andExpect(jsonPath("$.errors.amount").exists());
+
+        verifyNoInteractions(persistTransactionUseCase);
+    }
+
+    @Test
+    void should_return400_when_dateIsInTheFuture() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"description": "Viagem", "category": "LEISURE", "amount": 50000, "date": "2999-01-01"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.date").value("A data do gasto não pode estar no futuro"));
 
         verifyNoInteractions(persistTransactionUseCase);
     }
@@ -95,7 +112,7 @@ class TransactionControllerTest {
     @Test
     void should_listTransactions_when_categoryIsValid() throws Exception {
         when(listTransactionsByCategoryUseCase.execute(Category.PHARMA)).thenReturn(List.of(
-                new TransactionOutput("a1", "Remédio", "PHARMA", new BigDecimal("45.90"))));
+                new TransactionOutput("a1", "Remédio", "PHARMA", new BigDecimal("45.90"), DATE)));
 
         mockMvc.perform(get("/transactions/PHARMA"))
                 .andExpect(status().isOk())

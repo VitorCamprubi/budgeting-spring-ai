@@ -2,6 +2,8 @@ package dio.budgeting.domain;
 
 import lombok.Getter;
 
+import java.time.LocalDate;
+
 @Getter
 public class Transaction {
     public static final int MAX_DESCRIPTION_LENGTH = 255;
@@ -10,21 +12,23 @@ public class Transaction {
     private final String description;
     private final long amount;
     private final Category category;
+    private final LocalDate date;
 
-    public Transaction(TransactionId id, String description, long amount, Category category) {
-        validate(id, description, amount, category);
+    public Transaction(TransactionId id, String description, long amount, Category category, LocalDate date) {
+        validate(id, description, amount, category, date);
         this.id = id;
         this.description = description.strip();
         this.amount = amount;
         this.category = category;
+        this.date = date;
     }
 
-    public Transaction(String description, long amount, Category category) {
-        this(new TransactionId(), description, amount, category);
+    public Transaction(String description, long amount, Category category, LocalDate date) {
+        this(new TransactionId(), description, amount, category, date);
     }
 
     // As regras ficam no domínio para valer em qualquer entrada: API REST, tool calling da IA ou testes.
-    private static void validate(TransactionId id, String description, long amount, Category category) {
+    private static void validate(TransactionId id, String description, long amount, Category category, LocalDate date) {
         if (id == null) {
             throw new InvalidTransactionException("O identificador da transação é obrigatório");
         }
@@ -40,6 +44,9 @@ public class Transaction {
         }
         if (category == null) {
             throw new InvalidTransactionException("A categoria da transação é obrigatória");
+        }
+        if (date == null) {
+            throw new InvalidTransactionException("A data da transação é obrigatória");
         }
     }
 }
