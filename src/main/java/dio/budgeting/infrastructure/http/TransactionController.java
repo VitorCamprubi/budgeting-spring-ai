@@ -5,6 +5,7 @@ import dio.budgeting.application.PersistTransactionUseCase;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +25,7 @@ public class TransactionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TransactionResponse createTransaction(@RequestBody TransactionRequest request) {
+    public TransactionResponse createTransaction(@RequestBody @Valid TransactionRequest request) {
         var transaction = persistTransactionUseCase.execute(request.toInput());
         return TransactionResponse.from(transaction);
     }
