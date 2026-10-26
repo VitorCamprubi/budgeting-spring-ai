@@ -1,7 +1,9 @@
 package dio.budgeting.infrastructure.ai;
 
 import dio.budgeting.application.ListTransactionsByCategoryUseCase;
+import dio.budgeting.application.ListTransactionsByPeriodUseCase;
 import dio.budgeting.application.PersistTransactionUseCase;
+import dio.budgeting.application.SummarizeExpensesUseCase;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
 import org.springframework.ai.audio.tts.TextToSpeechModel;
 import org.springframework.ai.chat.client.ChatClient;
@@ -29,12 +31,20 @@ public class BudgetAssistant {
                            ChatClient.Builder chatClientBuilder,
                            @Value("classpath:prompts/system-message.st") Resource systemPrompt,
                            PersistTransactionUseCase persistTransactionUseCase,
-                           ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase) throws IOException {
+                           ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
+                           ListTransactionsByPeriodUseCase listTransactionsByPeriodUseCase,
+                           SummarizeExpensesUseCase summarizeExpensesUseCase,
+                           DateTimeTools dateTimeTools) throws IOException {
         this.transcriptionModel = transcriptionModel;
         this.textToSpeechModel = textToSpeechModel;
         this.chatClient = chatClientBuilder
                 .defaultSystem(systemPrompt.getContentAsString(StandardCharsets.UTF_8))
-                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase)
+                .defaultTools(
+                        persistTransactionUseCase,
+                        listTransactionsByCategoryUseCase,
+                        listTransactionsByPeriodUseCase,
+                        summarizeExpensesUseCase,
+                        dateTimeTools)
                 .build();
     }
 
