@@ -1,9 +1,14 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.application.ListTransactionsByCategoryUseCase;
+import dio.budgeting.application.ListTransactionsByPeriodUseCase;
 import dio.budgeting.application.PersistTransactionUseCase;
+import dio.budgeting.application.SummarizeExpensesUseCase;
+import dio.budgeting.application.output.ExpenseSummaryOutput;
+import dio.budgeting.application.output.ExpenseSummaryOutput.CategoryTotal;
 import dio.budgeting.application.output.TransactionOutput;
 import dio.budgeting.domain.Category;
+import dio.budgeting.domain.InvalidDateRangeException;
 import dio.budgeting.domain.InvalidTransactionException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +42,62 @@ class TransactionControllerTest {
 
     @MockitoBean
     ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
+
+    @MockitoBean
+    ListTransactionsByPeriodUseCase listTransactionsByPeriodUseCase;
+
+    @MockitoBean
+    SummarizeExpensesUseCase summarizeExpensesUseCase;
+
+    @Test
+    void should_listTransactionsByPeriodAndCategory() throws Exception {
+        var from = LocalDate.of(2026, 10, 1);
+        var to = LocalDate.of(2026, 10, 31);
+        when(listTransactionsByPeriodUseCase.execute(from, to, Category.AUTO)).thenReturn(List.of(
+                new TransactionOutput("c3", "Combustível", "AUTO", new BigDecimal("200.00"), DATE)));
+
+        mockMvc.perform(get("/transactions")
+                        .param("from", "2026-10-01")
+                        .param("to", "2026-10-31")
+                        .param("category", "AUTO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].description").value("Combustível"))
+                .andExpect(jsonPath("$[0].date").value("2026-10-25"));
+    }
+
+    @Test
+    void should_return400_when_periodIsInvalid() throws Exception {
+        when(listTransactionsByPeriodUseCase.execute(any(), any(), any()))
+                .thenThrow(new InvalidDateRangeException("A data inicial não pode ser posterior à data final"));
+
+        mockMvc.perform(get("/transactions").param("from", "2026-10-31").param("to", "2026-10-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Período inválido"));
+    }
+
+    @Test
+    void should_return400_when_dateFormatIsInvalid() throws Exception {
+        mockMvc.perform(get("/transactions").param("from", "31/10/2026"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Parâmetro inválido"));
+
+        verifyNoInteractions(listTransactionsByPeriodUseCase);
+    }
+
+    @Test
+    void should_returnExpenseSummary() throws Exception {
+        when(summarizeExpensesUseCase.execute(null, null)).thenReturn(new ExpenseSummaryOutput(
+                LocalDate.of(2026, 10, 1), DATE, new BigDecimal("320.50"), 3,
+                List.of(new CategoryTotal("AUTO", new BigDecimal("200.00"), 1),
+                        new CategoryTotal("GROCERIES", new BigDecimal("120.50"), 2))));
+
+        mockMvc.perform(get("/transactions/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(320.5))
+                .andExpect(jsonPath("$.transactionCount").value(3))
+                .andExpect(jsonPath("$.byCategory[0].category").value("AUTO"))
+                .andExpect(jsonPath("$.byCategory[1].transactionCount").value(2));
+    }
 
     @Test
     void should_return201_when_transactionIsValid() throws Exception {
