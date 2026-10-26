@@ -1,6 +1,7 @@
 package dio.budgeting.infrastructure.http;
 
 import dio.budgeting.domain.Category;
+import dio.budgeting.domain.InvalidDateRangeException;
 import dio.budgeting.domain.InvalidTransactionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +77,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail handleInvalidTransaction(InvalidTransactionException ex) {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage());
         problem.setTitle("Transação inválida");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidDateRangeException.class)
+    public ProblemDetail handleInvalidDateRange(InvalidDateRangeException ex) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Período inválido");
         return problem;
     }
 

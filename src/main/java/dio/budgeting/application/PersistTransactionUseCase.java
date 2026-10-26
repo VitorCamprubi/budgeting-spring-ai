@@ -7,18 +7,26 @@ import dio.budgeting.domain.TransactionRepository;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.Optional;
+
 @Service
 public class PersistTransactionUseCase {
     private final TransactionRepository transactionRepository;
+    private final Clock clock;
 
-    public PersistTransactionUseCase(TransactionRepository transactionRepository) {
+    public PersistTransactionUseCase(TransactionRepository transactionRepository, Clock clock) {
         this.transactionRepository = transactionRepository;
+        this.clock = clock;
     }
 
-    @Tool(name = "persist-transaction", description = "Persiste uma nova transação financeira")
+    @Tool(name = "persist-transaction", description = "Registra um novo gasto (transação financeira)")
     public TransactionOutput execute(PersistTransactionInput input) {
+        var date = Optional.ofNullable(input.date()).orElseGet(() -> LocalDate.now(clock));
+
         var transaction = transactionRepository.save(
-                new Transaction(input.description(), input.amount(), input.category()));
+                new Transaction(input.description(), input.amount(), input.category(), date));
 
         return TransactionOutput.from(transaction);
     }
