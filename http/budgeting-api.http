@@ -1,0 +1,76 @@
+### Exemplos de requisições da Budgeting API
+### Abra este arquivo no IntelliJ (HTTP Client) ou no VS Code (extensão REST Client) e clique em "Run".
+### Suba a aplicação antes com ./gradlew bootRun
+
+@baseUrl = http://localhost:8080
+
+### Registra um gasto (valor em centavos: 8000 = R$ 80,00). Sem "date", vale a data de hoje.
+POST {{baseUrl}}/transactions
+Content-Type: application/json
+
+{
+  "description": "Compra no mercado",
+  "category": "GROCERIES",
+  "amount": 8000
+}
+
+### Registra um gasto com data
+POST {{baseUrl}}/transactions
+Content-Type: application/json
+
+{
+  "description": "Pizza com os amigos",
+  "category": "RESTAURANT",
+  "amount": 6550,
+  "date": "2026-10-24"
+}
+
+### Erro de validação: retorna 400 com o erro de cada campo
+POST {{baseUrl}}/transactions
+Content-Type: application/json
+
+{
+  "description": "",
+  "amount": 0
+}
+
+### Gastos do mês atual
+GET {{baseUrl}}/transactions
+
+### Gastos de um período, filtrando por categoria
+GET {{baseUrl}}/transactions?from=2026-10-01&to=2026-10-31&category=GROCERIES
+
+### Resumo do mês atual (total e total por categoria)
+GET {{baseUrl}}/transactions/summary
+
+### Todos os gastos de uma categoria
+GET {{baseUrl}}/transactions/PHARMA
+
+### Assistente por texto (requer OPENAI_API_KEY)
+POST {{baseUrl}}/assistant/chat
+Content-Type: application/json
+
+{
+  "message": "Gastei 45 reais e 90 centavos na farmácia hoje"
+}
+
+### Pergunta para o assistente (usa as tools de data e resumo)
+POST {{baseUrl}}/assistant/chat
+Content-Type: application/json
+
+{
+  "message": "Quanto eu gastei esse mês? Em que categoria gastei mais?"
+}
+
+### Assistente por voz: envia um áudio e recebe um MP3 (requer OPENAI_API_KEY)
+POST {{baseUrl}}/assistant/voice
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="recording-1.m4a"
+Content-Type: audio/mp4
+
+< ../src/test/resources/audio/recording-1.m4a
+--boundary--
+
+>> resposta.mp3
