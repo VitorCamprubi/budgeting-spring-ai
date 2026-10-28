@@ -1,5 +1,6 @@
 package dio.budgeting.infrastructure.http;
 
+import com.openai.errors.OpenAIException;
 import dio.budgeting.domain.Category;
 import dio.budgeting.domain.InvalidDateRangeException;
 import dio.budgeting.domain.InvalidTransactionException;
@@ -87,13 +88,38 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(OpenAIException.class)
+    public ProblemDetail handleAiProviderFailure(OpenAIException ex) {
+        LOGGER.warn("Falha ao chamar o provedor de IA: {}", ex.getMessage());
+
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
+                "Não foi possível falar com o serviço de IA agora. Verifique a chave OPENAI_API_KEY e tente novamente.");
+        problem.setTitle("Serviço de IA indisponível");
+        return problem;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {
+        // O Spring AI pode embrulhar a exceção do SDK da OpenAI em outra; nesse caso continua sendo falha do provedor
+        var aiFailure = findCause(ex, OpenAIException.class);
+        if (aiFailure != null) {
+            return handleAiProviderFailure(aiFailure);
+        }
+
         LOGGER.error("Erro inesperado ao processar a requisição", ex);
 
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ocorreu um erro inesperado. Tente novamente mais tarde.");
         problem.setTitle("Erro interno");
         return problem;
+    }
+
+    private static <T extends Throwable> T findCause(Throwable ex, Class<T> type) {
+        for (Throwable current = ex; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return type.cast(current);
+            }
+        }
+        return null;
     }
 }
