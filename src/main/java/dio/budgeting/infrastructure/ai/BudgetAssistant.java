@@ -22,9 +22,12 @@ import java.nio.charset.StandardCharsets;
  */
 @Component
 public class BudgetAssistant {
+    private static final int RECENT_DAYS = 8;
+
     private final TranscriptionModel transcriptionModel;
     private final TextToSpeechModel textToSpeechModel;
     private final ChatClient chatClient;
+    private final DateTimeTools dateTimeTools;
 
     public BudgetAssistant(TranscriptionModel transcriptionModel,
                            TextToSpeechModel textToSpeechModel,
@@ -37,6 +40,7 @@ public class BudgetAssistant {
                            DateTimeTools dateTimeTools) throws IOException {
         this.transcriptionModel = transcriptionModel;
         this.textToSpeechModel = textToSpeechModel;
+        this.dateTimeTools = dateTimeTools;
         this.chatClient = chatClientBuilder
                 .defaultSystem(systemPrompt.getContentAsString(StandardCharsets.UTF_8))
                 .defaultTools(
@@ -49,7 +53,15 @@ public class BudgetAssistant {
     }
 
     public String chat(String message) {
-        return chatClient.prompt().user(message).call().content();
+        // A data e os últimos dias vão no prompt de sistema a cada chamada: nos testes reais, o modelo nem sempre
+        // chamava a tool de data e errava contas de calendário ("ontem" virava hoje, "sábado" virava quinta).
+        return chatClient.prompt()
+                .system(system -> system
+                        .param("today", dateTimeTools.currentDate())
+                        .param("recentDays", dateTimeTools.recentDays(RECENT_DAYS)))
+                .user(message)
+                .call()
+                .content();
     }
 
     public byte[] talk(Resource audio) {
