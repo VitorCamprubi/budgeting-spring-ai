@@ -18,21 +18,29 @@ public class OpenAiTranscriptionModelIT {
     @Autowired
     OpenAiAudioTranscriptionModel openAiTranscriptionModel;
 
+    /**
+     * O Whisper não formata valores sempre do mesmo jeito: o mesmo áudio pode virar "200 reais",
+     * "duzentos reais" ou "R$ 200,00". O teste aceita qualquer uma dessas formas do valor esperado.
+     */
     @ParameterizedTest
     @CsvSource({
-            "recording-1.m4a, 80 reais",
-            "recording-2.m4a, 40 reais",
-            "recording-3.m4a, 120 reais",
-            "recording-4.m4a, 90 reais",
-            "recording-5.m4a, 200 reais",
-            "recording-6.m4a, 60 reais",
+            "recording-1.m4a, 80, oitenta",
+            "recording-2.m4a, 40, quarenta",
+            "recording-3.m4a, 120, cento e vinte",
+            "recording-4.m4a, 90, noventa",
+            "recording-5.m4a, 200, duzentos",
+            "recording-6.m4a, 60, sessenta",
     })
-    public void should_containExpectedKeywords_when_audioFilesAreProcessed(String fileName, String expectedKeyword) {
+    public void should_containExpectedAmount_when_audioFilesAreProcessed(String fileName, int amount, String amountInWords) {
         var recording = new ClassPathResource("audio/" + fileName);
 
         var response = openAiTranscriptionModel.transcribe(recording);
 
-        assertThat(response).contains(expectedKeyword);
+        assertThat(response.toLowerCase()).containsAnyOf(
+                amount + " reais",
+                "r$ " + amount,
+                "r$" + amount,
+                amountInWords + " reais");
         System.out.println(response);
     }
 }
