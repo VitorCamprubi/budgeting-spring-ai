@@ -59,11 +59,11 @@ O desafio sugeria algumas formas de evoluir o projeto base. Estas foram as que i
 
 | Sugestão do desafio | O que fiz | PR |
 |---|---|---|
-| Criar testes para os principais fluxos | Os testes passaram a rodar **sem MySQL local e sem chave da OpenAI** (Testcontainers). Hoje são 55 testes de domínio, casos de uso, controllers, repositório e tools, mais o CI no GitHub Actions | [#1](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/1) |
+| Criar testes para os principais fluxos | Os testes passaram a rodar **sem MySQL local e sem chave da OpenAI** (Testcontainers). São 57 testes de domínio, casos de uso, controllers, repositório e tools, mais 10 casos que usam a OpenAI de verdade e o CI no GitHub Actions | [#1](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/1), [#6](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/6) |
 | Adicionar validações antes de salvar uma transação | Regras no domínio (descrição, valor > 0, categoria e data), Bean Validation na API e erros padronizados com `ProblemDetail` (400, 422, 502) em vez de 500 | [#2](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/2) |
 | Adicionar novos tipos de consulta financeira | Data na transação, **consulta por período** e **resumo de gastos por categoria** | [#3](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/3) |
 | Criar novas ferramentas para o Tool Calling | Novas tools `list-transactions-by-period`, `summarize-expenses` e `current-date` | [#3](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/3) |
-| Melhorar as respostas geradas pela IA | Prompt de sistema reescrito: quando usar cada tool, valores em centavos, perguntar quando faltar informação e respostas curtas, prontas para virar áudio | [#3](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/3) |
+| Melhorar as respostas geradas pela IA | Prompt de sistema reescrito: quando usar cada tool, valores em centavos e respostas curtas, prontas para virar áudio. Depois, **testando com a OpenAI real**, corrigi datas relativas ("ontem", "no sábado") e categorias com um calendário injetado no prompt (veja [Testando com o modelo de verdade](#-testando-com-o-modelo-de-verdade)) | [#3](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/3), [#6](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/6) |
 | Melhorar os endpoints REST | `POST /assistant/chat` (conversa por **texto**, sem gravar áudio), novos `GET` de consulta e tratamento de erros | [#3](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/3), [#4](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/4) |
 | Documentar melhor como usar a API | **Swagger UI** (springdoc), exemplos prontos em `http/budgeting-api.http` e este README | [#4](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/4), [#5](https://github.com/VitorCamprubi/budgeting-spring-ai/pull/5) |
 | Propor uma nova ideia de assistente | Proposta do **assistente de metas de orçamento**, em [Próximos passos](#-próximos-passos) | — |
@@ -71,6 +71,18 @@ O desafio sugeria algumas formas de evoluir o projeto base. Estas foram as que i
 ### 🐞 Bug que encontrei no caminho
 
 O valor é guardado em **centavos** (`8000` = R$ 80,00), mas a resposta não dividia por 100: R$ 80,00 aparecia como `8000.0`, e o assistente chegava a responder *"você gastou 8000 reais"*. Corrigi a conversão e troquei `double` por `BigDecimal`, que é o tipo certo para dinheiro. Um teste cobre esse caso (`TransactionOutputTest`).
+
+### 🔬 Testando com o modelo de verdade
+
+Os testes com mock passavam, mas quando conversei com a OpenAI de verdade apareceram problemas que só a IA real mostra:
+
+| Problema encontrado | Causa | Correção |
+|---|---|---|
+| *"Ontem paguei…"* era salvo com a data de hoje | O modelo nem sempre chamava a tool de data | A data de hoje vai no prompt de sistema a cada chamada (`.system(s -> s.param("today", ...))`) |
+| *"No sábado…"* virava uma quinta-feira | O modelo errava a conta do dia da semana | Um **calendário dos últimos 8 dias** vai no prompt, e o modelo só consulta, não calcula |
+| *"Saí para jantar…"* fazia o assistente perguntar a categoria | O prompt mandava perguntar quando faltasse informação | Regras explícitas de categoria (jantar → restaurante, combustível → carro…) |
+| O resumo falava "GROCERIES" e escreveu "cincocentos" | Nomes técnicos e números por extenso | Falar categorias em português e valores sempre com algarismos |
+| O teste de transcrição falhou em 2 de 6 áudios | O Whisper escreveu "duzentos reais" e "R$ 60,00" em vez de "200 reais" e "60 reais" | O teste passou a aceitar todas as formas válidas do mesmo valor |
 
 ### ⬆️ Atualizações
 
@@ -168,7 +180,13 @@ A aplicação sobe em `http://localhost:8080`, e o Spring Boot inicia o MySQL do
 ./gradlew test
 ```
 
-Só precisa do Docker em execução. Os testes `*IT`, que chamam a OpenAI de verdade, rodam apenas quando `OPENAI_API_KEY` está definida.
+Só precisa do Docker em execução. Os testes `*IT`, que chamam a OpenAI de verdade, rodam apenas quando `OPENAI_API_KEY` está definida. Com a chave, são 67 testes. Para rodar só os de integração com a OpenAI:
+
+```bash
+./gradlew test --tests "dio.budgeting.*IT"
+```
+
+> No Windows, use o nome do pacote no filtro: com `--tests "*IT"`, o `java.exe` expande o `*` como curinga de arquivo e o Gradle não encontra os testes.
 
 ### 2. API REST (sem IA)
 
@@ -229,6 +247,18 @@ curl -X POST http://localhost:8080/assistant/chat \
   -d '{"message":"Quanto eu gastei esse mês?"}'
 ```
 
+Conversa real com o assistente (`gpt-4o-mini`), feita numa quarta-feira, 28/10/2026, com o banco vazio:
+
+| Você | Assistente | O que foi salvo |
+|---|---|---|
+| Gastei 80 reais no mercado hoje | Pronto, registrei 80 reais em mercado hoje. | 28/10 · `GROCERIES` · R$ 80,00 |
+| Ontem paguei 45 reais e 90 centavos na farmácia | Pronto, registrei 45 reais e 90 centavos em farmácia no dia 27 de outubro. | 27/10 · `PHARMA` · R$ 45,90 |
+| No sábado saí para jantar e a conta deu 130 reais | Pronto, registrei 130 reais em restaurante no dia 24 de outubro. | 24/10 · `RESTAURANT` · R$ 130,00 |
+| Na segunda abasteci o carro, deu 220 reais | Pronto, registrei 220 reais em gastos com o carro no dia 26 de outubro. | 26/10 · `AUTO` · R$ 220,00 |
+| *(por voz)* "Gastei na farmácia rapidinho e deixei 80 reais em três itens" | *(áudio)* "Pronto. Registrei R$ 80,00 em farmácia hoje." | 28/10 · `PHARMA` · R$ 80,00 |
+| Quanto eu gastei esse mês? Em que categoria gastei mais? | Você gastou 555 reais e noventa centavos esse mês. A categoria em que você mais gastou foi carro, com um total de 220 reais. | — |
+| Quais foram meus gastos com farmácia em outubro? | Você teve dois gastos com farmácia em outubro. Ontem, gastou 45 reais e 90 centavos e hoje, 80 reais. | — |
+
 Sem a chave configurada, esses endpoints respondem `502` com a mensagem *"Verifique a chave OPENAI_API_KEY"*, e o resto da API continua funcionando.
 
 ### 4. Assistente por voz (requer `OPENAI_API_KEY`)
@@ -239,7 +269,9 @@ curl -X POST http://localhost:8080/assistant/voice \
   --output resposta.mp3
 ```
 
-O arquivo `resposta.mp3` traz a resposta falada do assistente. O endpoint original do curso, `POST /transactions/ai`, continua funcionando.
+O arquivo `resposta.mp3` traz a resposta falada do assistente, e o fluxo completo levou cerca de 5 segundos nos meus testes. O endpoint original do curso, `POST /transactions/ai`, continua funcionando.
+
+Curiosidade: a gravação `recording-5.m4a` diz *"a conta ficou em duzentos reais **por pessoa**"*. Como o total é ambíguo, o assistente respondeu em áudio *"Por quantas pessoas foi a conta?"* em vez de registrar um valor errado.
 
 > 💡 **Windows:** se mandar texto com acento pelo `curl` no terminal, ele pode chegar em outra codificação e a API responde 400 (JSON inválido). Use o Swagger, o arquivo `.http` ou `--data-binary @arquivo.json` salvo em UTF-8.
 
@@ -281,9 +313,10 @@ Categorias: `GROCERIES` (mercado), `PHARMA` (farmácia), `AUTO` (carro), `RESTAU
 | `TransactionControllerTest`, `AssistantControllerTest` | Endpoints com `@WebMvcTest`: status, validação e erros |
 | `JpaTransactionRepositoryTest` | Consultas JPA contra um **MySQL real** (Testcontainers) |
 | `BudgetToolsTest` | Chama cada tool com JSON, como o modelo faz, **sem a OpenAI** |
-| `SystemPromptTest` | O template do prompt renderiza sem erro |
+| `SystemPromptTest` | O template do prompt renderiza com a data e o calendário |
+| `DateTimeToolsTest` | Data de hoje e calendário dos últimos dias, com o dia da semana |
 | `BudgetingApplicationTests` | Contexto completo e documentação OpenAPI |
-| `*IT` | Integração real com a OpenAI (chat, tools, transcrição e voz); só rodam com a chave |
+| `*IT` | Integração real com a OpenAI (chat, tools, transcrição dos 6 áudios e voz). Só rodam com a chave e passaram nos meus testes |
 
 O GitHub Actions roda `./gradlew build` a cada push e Pull Request.
 
@@ -293,8 +326,9 @@ O GitHub Actions roda `./gradlew build` a cada push e Pull Request.
 
 - **Spring AI na prática:** a diferença entre `ChatModel` (baixo nível) e `ChatClient` (API fluente com prompt de sistema e tools), e como `TranscriptionModel` e `TextToSpeechModel` fecham o ciclo voz → texto → voz.
 - **Tool calling bem feito depende de boas descrições.** O modelo escolhe a tool pelo nome, pela descrição e pelos parâmetros. Explicar "valor em centavos" e dar exemplos na `@ToolParam` fez diferença.
-- **O modelo não sabe que dia é hoje.** Uma tool simples de data atual resolve perguntas como "esse mês".
+- **O modelo não sabe que dia é hoje e erra contas de calendário.** Uma tool de data ajudava, mas não bastava: o modelo nem sempre a chamava e confundia os dias da semana. A solução robusta foi colocar a data e um calendário dos últimos dias direto no prompt, deixando o modelo consultar em vez de calcular.
 - **Testar IA sem gastar com IA:** quase tudo pode ser testado sem chamar a OpenAI. As tools são testadas chamando os callbacks com JSON, e os controllers com o assistente mockado. Só os testes `*IT` usam a API de verdade.
+- **Mas o modelo real precisa ser testado.** Com mocks tudo passava, e mesmo assim a conversa real revelou 4 problemas de comportamento (datas, categoria e jeito de falar). Também aprendi que asserções sobre texto gerado por IA precisam aceitar variações de formato ("200 reais", "duzentos reais", "R$ 200,00").
 - **Testcontainers** deixa os testes independentes da máquina: o MySQL sobe sozinho tanto no meu computador quanto no CI.
 - **Problem Details (RFC 9457)** para padronizar erros, e diferenciar 400 (requisição inválida), 422 (regra de negócio) e 502 (serviço externo).
 - **Migração de versão:** atualizar de milestone para versão estável quebrou a API do `OpenAiApi`, e precisei ler o que mudou. No Spring Boot 4, os *test slices* (`@WebMvcTest`, `@DataJpaTest`) viraram dependências separadas.
